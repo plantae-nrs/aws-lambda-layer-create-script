@@ -1,1 +1,4 @@
 samexample/.aws-sam
+.DS_Store
+layer.zip
+requirements.txt

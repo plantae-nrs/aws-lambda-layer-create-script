@@ -10,9 +10,25 @@ First, create a shell script (.sh file) with the following code (or use the one 
 ```html
 #!/bin/bash
 
+CURRENT=`pwd`
+
 if [ "$1" != "" ] || [$# -gt 1]; then
 	echo "Creating layer compatible with python version $1"
 	docker run -v "$PWD":/var/task "lambci/lambda:build-python$1" /bin/sh -c "pip install -r requirements.txt -t python/lib/python$1/site-packages/; exit"
+
+	# Clean unused stuff
+	cd "python/lib/python$1/site-packages/"
+	rm -rf easy-install*
+	rm -rf wheel*
+	rm -rf setuptools*
+	rm -rf virtualenv*
+	rm -rf pip*
+	find . -type d -name "tests" -exec rm -rf {} +
+	find . -type d -name "test" -exec rm -rf {} +
+	find . -type d -name "__pycache__" -exec rm -rf {} +
+	find . -name '*.pyc' -delete
+	echo "Final layer size: $(du -sh . | cut -f1)"
+	cd "$CURRENT"
 	zip -r layer.zip python > /dev/null
 	rm -r python
 	echo "Done creating layer!"
@@ -79,6 +95,13 @@ Done creating layer!
 ```
 
 The script outputs the size of the zipped layer as shown above (60MB). Make sure you read the guidelines on limits published here - https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html
+
+Once finished note the packges installed and *ONLY* add required dependancies to requirements.txt. For example: since scipy and numpy are provided by AWS layer - they should be included in requirements.txt.
+
+Modify createlayer.sh, add `--no-deps` to the pip install so it will look as such:
+`docker run -v "$PWD":/var/task "lambci/lambda:build-python$1" /bin/sh -c "pip install --no-deps -r requirements.txt -t python/lib/python$1/site-packages/; exit"`
+
+Rerun `createlayer.sh`
 
 Any layer(.zip) above 10MB in size must be uploaded to S3 first so you can provide AWS Lambda with a link to the layer on S3, and layers less than 10MB can be uploaded directly through the AWS lambda console. Each function can have up to 5 layers, and the total size of all unzipped layers and code must be less than 250 MB. 
 
